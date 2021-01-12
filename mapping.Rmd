@@ -1,0 +1,137 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    always_allow_html: yes
+---
+
+Introduction:
+
+In the previous assignments, two variables were introduced each of which have three latent variables. Also, there are some manifest variables, which are used to measure construct variables. The first variable is ‘Host’ that includes three latent variables, 'strict_host’, ‘flexible_host’ and ‘info_host’. The second variable is Awful_Airbnb_Listing, which has three latent variables, too (‘Unreasonable_price’, ‘inaccurate_location, ‘bad_reviews’). Host variables are measured at neighborhood levels and awful Airbnb listings are measured at parcel levels. In this assignment I want to represent the distribution of these variables across the city.
+
+
+Data Analysis:
+
+In order to indicate the neighborhoods that have strict hosts, four manifest variables that are used to reflect strict host, are represented in four separated maps. The first map shows the neighborhoods that include hosts who ask customers to have profile pictures before reservation. The map displays South End and Downtown have the greatest number of strict hosts, who request guests to have profile pictures, among all neighborhoods. The second map indicates the number of hosts, who are strict about cancellation by guests, in each neighborhood. The result illustrates that South End and Back Bay have the highest number of hosts, who are strict about cancellation. The third map displays the location of hosts, who consider more than $1000 for security deposit. The map shows that most of these strict hosts are located in Back Bay and Beacon Hill. The last map indicates the number of hosts whom acceptance rate for a particular booking is less than 85%. According to the map, Back Bay and Fenway have the highest number of these strict hosts among all neighborhoods. Therefore, according to all maps, Back Bay and South End contain the greatest number of strict hosts among all neighborhoods.
+
+```{r}
+library(sf)
+# Shapefile of neighborhoods in Boston
+nbhd_geo <- st_read(dsn="~/Desktop/boston_neighborhood_shapefiles_iq5/boston_neighborhood_shapefiles_iq5.shp")
+# Convert coordinate system
+nbhd_geo <- st_transform(nbhd_geo, "+proj=longlat +datum=NAD83 +no_defs")
+# Importing latent variables's file
+Airbnb_Host <- read.csv("~/Desktop/Host.csv")
+# Merging shapefile and latent variable's file
+nbhd_geo <- merge(nbhd_geo, Airbnb_Host, by.x='Name', by.y = 'Neighborhood',all.x=TRUE)
+
+
+
+# Strict Hosts
+library(tmap) 
+tmap_mode('view')
+tm_shape(nbhd_geo) + tm_polygons(c('have_profile_pic','cancellation_policy_strict', 'security_deposit_strict', 'acceptance_rate_strict') , palette=list("Oranges", "Purples", "Blues", "Reds"), style = "jenks") +  tm_facets(nrow=2,ncol=2) + tm_style('col_blind') + tm_view(alpha = 0.85,view.legend.position = c("right", "bottom")) 
+```
+
+The below maps indicate the distribution of flexible hosts in each neighborhood in Boston. The first map shows hosts who don’t care about customers' profile pictures. Jamaica Plain and Dorchester have the highest number of these flexible hosts. The second map presents the number of flexible hosts, who are moderate about cancellation by guests, and most of them are located in Dorchester and Jamaica Plain. The third map shows the hosts who don’t ask for security deposit and the highest number of them are distributed in Jamaica Plain and Fenway. Finally, the fourth map indicates the acceptance rate by flexible host and the result represents that Dorchester, Jamaica Plain, and South End have the greatest number of these flexible hosts among all neighborhoods. Therefore, based on all these maps, we can conclude that Jamaica Plain and Dorchester have the highest number of flexible hosts among all neighborhoods.
+
+
+```{r}
+
+# Flexible Hosts
+tmap_mode('view')
+tm_shape(nbhd_geo) + tm_polygons(c('no_profile_pic','cancellation_policy_flexible', 'security_deposit_0', 'acceptance_rate_flexible') , palette=list("-RdYlBu", "Greys", "Dark2", "Blues"), style = "jenks") +  tm_facets(nrow=2,ncol=2) + tm_style('col_blind') + tm_view(alpha = 0.85,view.legend.position = c("right", "bottom")) + tm_layout(title = c("No request for profile pictures", "Flexible about cancellation", "Security deposit is $0", "Acceptance rate above 85%"),legend.text.size = 1)
+```
+
+These maps indicate the distribution of Airbnb listings in each neighborhood, whose owners are strict or flexible people based on the information that are provided on Airbnb website by these hosts. The left map shows the number of hosts, whose notes represent that they are strict people, in each neighborhood. The result illustrates that Dorchester, Jamaica Plain, and South End have the highest number of strict hosts among all neighborhoods. The right map displays the location of Airbnb listings whose hosts are flexible people based on their notes. According to the map, we can conclude that a greater number of flexible hosts are located in Brighton, Dorchester, and North End.
+
+```{r}
+# Information provided by hosts indicate strict and flexible hosts
+tmap_mode('view')
+tm_shape(nbhd_geo) + tm_polygons(c('info_strict','info_flexible') , palette=list("seq", "Reds"), style = "jenks") +  tm_facets(nrow=1,ncol=2)  + tm_view(alpha = 0.85,view.legend.position = c("right", "bottom")) + tm_layout(title = c("Info about strict hosts", "Info about flexible hosts"),legend.text.size = 1)
+```
+
+The second variable that contains three construct variables and some manifest variables is 'Awful_Airbnb_Listing', which is measured at parcel level. First of all, the density of all these latent variables is represented in the below map. The result of map shows that parcels that are located in Downtown, Back Bay, and North End have the highest density of awful Airbnb listings among all parcels.
+
+
+
+```{r}
+library(rgdal)
+library(ggplot2)
+# Importing land parcel shapefile
+parcels_geo <- readOGR(dsn="~/Desktop/LandParcels", layer="LandParcels.2017")
+# making the parcels_geo shapefile accessible to ggplot with fortify
+parcels_geo <- fortify(parcels_geo, region = "Ln_P_ID")
+# Importing Awful Airbnb Listing's latent variables
+Awful_Airbnb_Listing <- read.csv("~/Desktop/Awful_Listing.csv")
+# Merging parcels_geo and laten variable's file
+parcels_geo <- merge(parcels_geo,Awful_Airbnb_Listing,by.x='id',by.y='Land_Parcel_ID',all.x=TRUE)
+parcels_geo<-parcels_geo[order(parcels_geo$order),]
+
+
+library(ggmap)
+# Boston map
+Boston <- get_map(location=c(left = -71.193799, bottom = 42.15, right = -70.985746, top = 42.5))
+Bostonmap <- ggmap(Boston)
+
+# Density Plot 
+Bostonmap + geom_density2d(aes(x = longitude, y = latitude), data = Awful_Airbnb_Listing)
+
+```
+
+The first latent variable that was introduced for awful Airbnb listing is 'inaccurate_location', which means that the location of a particular Airbnb listing is not accurate based on information that is provided on the Airbnb website by hosts. The highest number of Airbnb listings whose locations are not accurate, are located in parcels, whose location are around Back Bay, Mission Hill, Allston, and Fenway neighborhoods. However, the results indicate that parcel 502013000 includes the highest number of listings with inaccurate locations, which is located in Beacon Hill.
+
+```{r}
+# Inaccurate Location
+Bostonmap + geom_polygon(aes(x=long, y=lat, group=group, fill = Inaccurate.Location), data=parcels_geo)+ scale_fill_gradient(low = "sky blue", high = "red", na.value="white") + labs(fill='Inaccurate Location')
+
+# Maximum listings with inaccurate location at parcel level
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$Inaccurate.Location)]
+```
+
+
+The second latent variable for 'Awful_Airbnb_Listing' is 'bad_reviews', which means that the average score for all reviews for a particular Airbnb listing is less than 9 out of 10. The map displays that the greatest number of parcels that contain Airbnb listings with bad reviews are located around Mission Hill and Roxbury neighborhoods. However, the results indicate that parcel 400985000 includes the highest number of listings with bad reviews among all parcels, which is located in Back Bay.
+
+```{r}
+# Bad Reviews
+Bostonmap+ geom_polygon(aes(x=long, y=lat, group=group, fill= Bad.Reviews), data= parcels_geo) + scale_fill_gradient(low="thistle2", high="darkred", guide="colorbar",na.value="white") + labs(fill='Bad Reviews')
+
+# Maximum listings with bad reviews at parcel level
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$Bad.Reviews)]
+```
+
+The last latent variable for awful Airbnb listing is 'unreasonable_price', which includes three manifest variables. These manifest variables are high security deposit, high cleaning fee, and high price for extra people, which are represented in separate maps. First map shows Airbnb listings with high security deposit at parcel level. The highest number of Airbnb listings with high security deposit at parcel levels are represented with red color, which are located in Beacon Hill and Downtown neighborhoods. The next map indicates distribution of Airbnb listings with high cleaning fee in each parcel. The results of map show that a greater number of listings with high cleaning fee are located in Allston's parcels. The last map presents high price for extra people in each parcel. The result illustrates that the highest number of Airbnb listings with high price for extra people are located in parcels that their locations are in Mattapan, Fenway, Mission Hill, and Jamaica Plain neighborhoods.
+
+```{r}
+library(tmap)
+library(sf)
+# Importing land parcel shapefile
+parcels_geo2 <- st_read(dsn="~/Desktop/LandParcels/LandParcels.2017.shp")
+parcels_geo2 <- st_transform(parcels_geo2, "+proj=longlat +datum=NAD83 +no_defs")
+# Merging shapefile with variables file
+parcels_geo2 <- merge(parcels_geo2, Awful_Airbnb_Listing, by.x='Ln_P_ID', by.y='Land_Parcel_ID',all.x=TRUE)
+
+# High security deposit at parcel level
+tmap_mode('view')
+tm_shape(parcels_geo2[parcels_geo2$high_security_deposit  & !is.na(parcels_geo2$high_security_deposit),]) + tm_polygons('high_security_deposit', palette="Blues", style = "jenks") + tm_layout(title = 'High security deposit') 
+
+
+
+# High cleaning fee at parcel level
+tmap_mode('view')
+tm_shape(parcels_geo2[parcels_geo2$high_cleaning_fee  & !is.na(parcels_geo2$high_cleaning_fee),]) + tm_polygons('high_cleaning_fee', style = "jenks") + tm_layout(title = 'High cleaning fee') 
+
+
+# High extra price for extra people at parcel level
+tmap_mode('view')
+tm_shape(parcels_geo2[parcels_geo2$high_extra_people_price  & !is.na(parcels_geo2$high_extra_people_price),]) + tm_polygons('high_extra_people_price', palette="Reds",style = "jenks") + tm_layout(title = 'High extra price for extra people') 
+```
+
+
+Conclusion:
+
+In this assignment, the selected latent variables are demonstrated in different maps. Host variable, which contains three latent variables (strict_host, flexible_host, and info_host) is represented at neighborhood levels. The results of these maps display that the highest number of Airbnb listings with strict hosts are located in Back Bay and south End. On the other hand, a greater number of Airbnb listings with flexible hosts are located in Dorchester and Jamaica Plain among all neighborhoods. Awful Airbnb listing variable, which includes three latent variables (unreasonable_price, bad_reviews, and inaccurate_location) is represented at parcel levels. According to maps for these variables, we can conclude that Roxbury and Mission Hill contain the highest number of parcels that include Airbnb listings with bad reviews. Fenway and Back Bay have the greatest number of parcels that contain listings with inaccurate locations. Finally, unreasonable price is displayed in three separated maps and the results show that parcels that cover Airbnb listings with unreasonable prices are distributed around all neighborhoods. 
+
+

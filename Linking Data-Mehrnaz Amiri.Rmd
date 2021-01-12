@@ -1,0 +1,401 @@
+---
+title: "R Notebook"
+geometry: margin = 1cm
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+Introduction:
+
+The latent variables, introduced in the last assignment, were divided into two parts. The first part contains the characteristics of the hosts of Airbnb listings, which are categorized as strict host, flexible host, and information that is provided by hosts, which represents the personalities of hosts. I considered these variables about hosts, since I believe that personality of the host can impact choosing a particular listing to stay. Some visitors prefer to stay at places whose hosts are flexible to be more relaxed, on the other hand, some people don't care about host's personalities. The second part indicates the characteristics of the awful Airbnb listings, which include unreasonable prices, negative reviews, and inaccurate location. These items play significant roles on choosing an Airbnb listing to stay. The reasons for choosing amount of all these variables were discussed in the previous assignment. All of these construct variables contain some manifest or measurable variables that help us to reflect these latent variables. I decided to measure host variables at neighborhood levels and awful Airbnb listings variables at parcel levels as an approximation of properties in Boston area.
+
+
+```{r}
+Airbnb <- read.csv("~/Desktop/my_Airbnb.csv", sep = ",", header = TRUE, stringsAsFactors=FALSE)
+# Selecting variables I need to create latent and manifest variables
+library(tidyverse)
+host_variables <- select(Airbnb, host_acceptance_rate, security_deposit, require_guest_profile_picture, 
+                         cancellation_policy, notes, host_about, house_rules, access, neighbourhood_cleansed)
+```
+
+
+Data Analysis:
+
+First of all, the variables that are needed to measure latent variables are selected from original Airbnb dataset. These variables create a data frame whose name is host_variables. All character variables are converted to numeric variables in order to use in sqldf function. The first latent variable for host variables is 'flexible host', which contains four manifest variables. I used the information in database to indicate characteristics of flexible host, so I think we can call a host as flexible person, who has some of these characteristics. For example, if host's acceptance rate for visitors are greater than %85, the price that host is considered as security deposit is equal to 0, it doesn't matter for host that guests have profile pictures or not, and finally the host is flexible about cancellation by guests, this particular host is a flexible person. 
+
+
+```{r}
+# Convert 'host_acceptance_rate' to numeric variable
+host_variables$host_acceptance_rate <- as.numeric(gsub('[%,]', '', host_variables$host_acceptance_rate))
+# Convert 'security_deposit' to numeric variable
+host_variables$security_deposit <- as.numeric(gsub('[$,]', '', host_variables$security_deposit))
+# Convert 'require_guest_profile_picture' to numeric variable
+host_variables$require_guest_profile_picture <- 
+  ifelse(host_variables$require_guest_profile_picture == "t", 1, 0)
+# Convert 'cancellation_policy' to numeric variable
+host_variables$cancellation_policy <- ifelse(host_variables$cancellation_policy == "strict" 
+                                             | host_variables$cancellation_policy ==
+                                               "strict_14_with_grace_period", 1, 0)
+
+
+
+library(sqldf)
+## Latent variable (1): flexible_host
+# Using sqldf command to execute multiple aggregation for flexible_host
+flexible_host <- sqldf("select neighbourhood_cleansed as Neighborhood,
+                      sum(host_acceptance_rate > 85) as acceptance_rate_flexible,
+                      sum(security_deposit == 0) as security_deposit_0,
+                      sum(require_guest_profile_picture == 0) as no_profile_pic, 
+                      sum(cancellation_policy == 0) as cancellation_policy_flexible
+                      from host_variables
+                      group by neighbourhood_cleansed")
+
+# Graph of flexible_host
+library(ggplot2)
+accRate_pic <- ggplot(flexible_host, aes(x = no_profile_pic , y = acceptance_rate_flexible))
+accRate_pic + geom_point(color = 'red', size = 2) + 
+  geom_smooth(method = lm, se = FALSE) + 
+  labs(x = 'Number of listings with no need to have profile picture', y = 'Number of listins with acceptance rate > 85%', 
+       title = 'Relationship between missing profile picture and acceptance rate by flexible host') +
+  geom_text(aes(label = Neighborhood),vjust = 1, check_overlap = TRUE, vjust = "inward", hjust = "inward")
+```
+
+
+In addition, I am wondering to know if there is any relationship between flexible host's acceptance rates and don't care about guests’ profile pictures. Thus, this relationship is displayed in the above plot, which represents that there is a positive strong relationship between these two variables. Also, the name of each neighborhood is indicated too, and the results show that Bay Village has the fewest number of flexible hosts with acceptance rate above 85% and don't ask for profile picture among all neighborhoods.
+
+
+
+The second considered latent variable is 'strict_host', which represents the characteristics most of which are opposite of flexible hosts’ characteristics. We can call a person as a strict host, if she/he is strict or super strict about cancellation by guests, acceptance rate by her/him is below 85%, she/he requests for visitor's profile pictures, and she/he considers security deposit equal or greater than $1000 for a particular listing. About cancellation policy, strict host will be strict or super strict if cancellation is done after 14 days of reservation.
+
+```{r}
+## Latent variable (2): strict_host
+# Using sqldf command to execute multiple aggregation for strict_host
+strict_host <- sqldf("select neighbourhood_cleansed as Neighborhood,
+                      sum(host_acceptance_rate < 85) as acceptance_rate_strict,
+                      sum(security_deposit >= 1000) as security_deposit_strict,
+                      sum(require_guest_profile_picture == 1) as have_profile_pic, 
+                      sum(cancellation_policy == 1) as cancellation_policy_strict
+                      from host_variables
+                      group by neighbourhood_cleansed")
+
+# Graph of strict host
+library(ggplot2)
+sec_dep <- ggplot(strict_host, aes(x = security_deposit_strict , y = cancellation_policy_strict))
+sec_dep + geom_point(color = 'navy', size = 2)+ 
+  geom_smooth(method = lm, se = FALSE) + 
+  labs(x = 'Security deposit', y = 'Cancellation policy', 
+       title = 'Relationship between security deposit and cancellation policy by strict hosts') 
+
+```
+
+I want to know if there is any relationship between security_deposit_strict and cancellation_policy_strict variables. Therefore, the scatterplot of these two variables is represented and the result displays that there is a positive strong relationship between these two variables. It means that if a strict host considers above $1000 security deposit, he/she will be super strict or strict about cancellation too.
+
+```{r}
+# Merging two variables 'stric_host' and 'flexible_host'
+both_hosts <- merge(flexible_host, strict_host, by = 'Neighborhood', all = TRUE)
+both_hosts
+```
+
+
+The ‘strict_host’ and ‘flexible_host’ are mergerd according to ‘Neighborhood’ in order to represent the number of strict and flexible hosts in each neighborhood. The ‘flexible_host’ variables across neighborhood represent that Jamaica Plain and South End have the greatest number of flexible hosts who have acceptance rate above %85. Jamaica Plain and Fenway have a greater number of flexible hosts who consider $0 for security deposit. Jamaica Plain and Back Bay contain the greatest number of flexible hosts who don’t ask guests to provide profile pictures. Finally, Jamaica Plain and Dorchester have the highest number of flexible hosts who are moderate about cancellation policy. Therefore, we can conclude Jamaica Plain has the greatest number of flexible hosts among all neighborhoods. However, we should consider Jamaica Plain has the highest number of Airbnb listings among all neighborhoods, so there is a possibility that the reason Jamaica Plain has the highest number of flexible hosts relates to this issue.
+
+
+According to results, Fenway and Back Bay have the highest number of strict hosts whose acceptance rates are below 85%. Back Bay and Beacon Hill have the greatest number of strict hosts who consider security deposit equal or greater than $1000. Jamaica Plain and South End have the greatest number of strict hosts who ask guests to provide their profile pictures. Finally, Back Bay and Fenway contain the greatest number of strict hosts who are strict or super strict about cancellation by visitors. There is an interesting issue here, while Jamaica Plain or Dorchester have the highest number of Airbnb listings, they don’t have the greatest number of listings that their hosts are strict people. Therefore, in the following, I will discuss the effect of neighbrohoods on strict variables.
+
+
+
+```{r}
+# Creating varibale strict in host_variables dataset
+host_variables$strict <- ifelse(host_variables$host_acceptance_rate < 85 | 
+                                  host_variables$security_deposit >= 1000 | 
+                                  host_variables$cancellation_policy == 1 | 
+                                  host_variables$require_guest_profile_picture == 1, 1, 0)
+
+# Bivariate Regression of neighrbohoods on strict variable
+bv1 <- lm(strict ~ neighbourhood_cleansed, host_variables)
+# Display regression with stargazer
+suppressMessages(library(stargazer))
+stargazer(bv1, type = "text", header = FALSE, single.row = TRUE,
+dep.var.labels = c("Stirct Hosts"), covariate.labels = c("Back Bay", "Bay Village",  "Beacon Hill" , "Brighton", "Charlestown", "Chinatown", "Dorchester", "Downtown", "East Boston", "Fenway",  "Hyde Park", "Jamaica Plain", "Leather District", "Longwood Medical Area",  "Mattapan", "Mission Hill","North End", "Roslindale", "Roxbury", "South Boston", "South Boston  Waterfront", "South End", "West End", "West Roxbury"), omit.stat=c("LL","ser","f","adj.rsq"))
+
+```
+
+The result indicates that Back Bay, Beacon Hill, Chinatown, Dorchester, Fenway, Mission Hill, and West End statically have significant effect on number of strict hosts in each neighborhood. However, Dorechester have negative impact on strict variable. There is a possibility, which is because the price is higher in these neighborhoods and they have more attractions compared to other neighborhoods, the hosts in these neighborhoods are stricter about their properties.
+
+
+
+The third latent variable, which is information provided by hosts, displays the personalities of hosts too. Strict hosts write notes about themselves that show they are strict people. For example, their notes contain 'No smoking', 'No shoes', or 'no party'. On the other hand, flexible hosts write information that represent they are easy-going and flexible people. For instance, they wrote 'feel free to use everything', 'full access to whole place', or 'I am a flexible person'.
+
+```{r}
+# Finding information that is provided by strict hosts
+host_variables$strict_info <- ifelse(as.numeric(str_detect(host_variables$house_rules,"No shoes")) |
+                                       as.numeric(str_detect(host_variables$house_rules,"no shoes")) | 
+                                       as.numeric(str_detect(host_variables$house_rules,"No smoking")) | 
+                                       as.numeric(str_detect(host_variables$house_rules,"no smoking")) | 
+                                       as.numeric(str_detect(host_variables$house_rules, "no party")) | 
+                                       as.numeric(str_detect(host_variables$house_rules,"no parties")), 1, 0)
+
+# Finding information that is provided by flexible hosts
+host_variables$flex_info <- ifelse(as.numeric(str_detect(host_variables$access, "full access")) | 
+                                     as.numeric(str_detect(host_variables$access, "flexible")) | 
+                                     as.numeric(str_detect(host_variables$access, "feel free")) | 
+                                     as.numeric(str_detect(host_variables$access, "Everything"))| 
+                                     as.numeric(str_detect(host_variables$access, "Entire")), 1, 0)
+
+## Latent variable (3): info_host
+# Using sqldf command to execute multiple aggregation for information about hosts 
+info_host <- sqldf("select neighbourhood_cleansed as Neighborhood,
+                      sum(strict_info == 1) as info_strict,
+                      sum(flex_info == 1) as info_flexible
+                      from host_variables
+                      where neighbourhood_cleansed != 'NA'
+                      group by neighbourhood_cleansed")
+
+info_host
+tail(info_host, n = 2)
+```
+
+
+Information that is provided by strict and flexible hosts are represented across each neighborhood. The results illustrate that Dorchester, Jamaica Plain, and South End have the highest number of hosts whose written information indicate they are strict people. On the other hand, Brighton and North End have the greatest number of flexible hosts according to their written notes. Finally, three latent variables about hosts are merged at neighborhood level.
+
+
+```{r}
+# Merging three variables 'flexible_host & strict_host' and 'info_host
+Host <- merge(both_hosts, info_host, by = 'Neighborhood', all = TRUE )
+write.csv(Airbnb,"~/Desktop/my_Airbnb.csv", row.names = FALSE)
+# Comparing the number of flexible and strict hosts in all neighbrohoods
+colSums(flexible_host[,-1])
+colSums(strict_host[,-1])
+colSums(info_host[,-1])
+
+# Graph of strict host
+library(ggplot2)
+Host_plot <- ggplot(Host, aes(x = info_strict, y = acceptance_rate_flexible ))
+h <- Host_plot + geom_point(shape = 1) + theme_bw()
+ggsave("h.png", path = "~/Desktop") 
+
+```
+
+
+These three variables ('strict_host', 'flexible_host', and 'info_host') are merged to create Host variables. Comparing the total number of flexible and strict hosts in all neighborhoods indicates that the greatest number of Airbnb listings contain hosts who are flexible people. However, if we consider the information that is provided by hosts, we can say the number of strict hosts are greater than flexible hosts. The graph shows the relationship between Information that represents the host is strict and acceptance rate above 85% which is considered for flexible hosts. The results display that these two variables have strong positive relationships together. It means that if a particular host writes strict notes, it doesn't mean he/she will be strict about accepting guests.
+
+
+
+
+The second part of latent variables represents the awful Airbnb listings at parcel levels in Boston. Therefore, in order to measure these variables at parcel level, the geographical infrastructure file is used. To have access to Level Parcel ID, Airbnb dataset is merged with LandParcels.2017 file at Blk_ID_10 level. Thus, the variables that I need for measuring construct variables are selected and they create awful_airbnb_var file.
+
+```{r}
+library(tidyverse)
+Geo <- read.csv("~/Desktop/Mapping/LandParcels.2017.csv", sep = ",", header = TRUE, stringsAsFactors=FALSE)
+geo_levels <- merge(Airbnb, Geo, by = 'Blk_ID_10', all.x = TRUE)
+geo_levels <- geo_levels[-c(104:132)]
+awful_airbnb_var <- select(geo_levels, price, cleaning_fee,Land_Parcel_ID, security_deposit, extra_people, 
+                           satisfaction, is_location_exact, neighbourhood_cleansed)
+```
+
+
+First of all, the awful Airbnb listing variable is defined, which contains three construct variables and their manifest variables. The first one is 'unreasonable_price' that contains three manifest variables (unfair cleaning fee, unfair extra people price, and high security deposit). In order to measure 'unreasonalbe_price', the price of extra people and security deposit are converted to numeric variables. Then, the price for extra people and cleaning fee are defined, which means that if price of extra people is greater than half of listing's nightly rate, it is mentioned as 'high_extra_people_price'. Also, if price for cleaning is equal or greater than the price for a night to stay it is considered as 'high_cleaning_fee'. In addition, security deposit equal or greater than $1000 is defined as 'high_security_deposit'. The other characteristic of this variable is all awful Airbnb listings have the score of reviews below 9 (the average of score of all reviews for all Airbnb listings is greater than 9 out of 10). Finally, the locations of awful Airbnb listings are inaccurate. All variables for awful Airbnb listings variables are measured at parcel level.
+
+
+```{r}
+# Convert 'extra_people' to numeric variable
+awful_airbnb_var$extra_people <- as.numeric(gsub('[$,]', '', awful_airbnb_var$extra_people))
+# Convert 'security_deposit' to numeric variable
+awful_airbnb_var$security_deposit <-  as.numeric(gsub('[$,]', '', awful_airbnb_var$security_deposit))
+# Creating half_price variable
+awful_airbnb_var <- transform(awful_airbnb_var, half_price = price/2)
+# Indicating high_extra_people_price
+awful_airbnb_var$high_extra_people_price <- ifelse(awful_airbnb_var$extra_people > awful_airbnb_var$half_price , 1, 0)
+# Indicating high_cleaning_fee
+awful_airbnb_var$high_cleaning_fee <- ifelse(awful_airbnb_var$cleaning_fee >= awful_airbnb_var$price, 1, 0)
+
+
+## Latent variable (1): 'unreasonable_price'
+# Using sqldf command to execute multiple aggregation for unreasonable_price
+library(sqldf)
+unreasonable_price <- sqldf("select Land_Parcel_ID,
+                      sum(high_cleaning_fee == 1) as high_cleaning_fee,
+                      sum(security_deposit >= 1000) as high_security_deposit,
+                      sum(high_extra_people_price == 1) as high_extra_people_price
+                      from awful_airbnb_var
+                      group by Land_Parcel_ID")
+tail(unreasonable_price, n = 3)
+
+
+# Compute the correlation matrix of 'unreasonable_price'
+corMat <- cor(unreasonable_price[,-1], use = "pairwise.complete.obs")
+corMat
+
+# Graph of unreasonable_price
+library(ggplot2)
+unfair_price <- ggplot(unreasonable_price, aes(x = high_cleaning_fee , y = high_security_deposit))
+unfair_price + geom_point() + geom_smooth(method = lm, se = FALSE) + 
+  labs(x = 'High Cleaning Fee', y = 'High price for Security Deposit', 
+       title = 'Relationship between Cleaning Fee and Security Deposit') 
+
+```
+
+I am wondering if there is any relationship between 'unreasonable_price' variables. Therefore, the matrix correlation of these variables is defined. The result of matrix correlation displays that these variables don't have strong relationship, but 'high_security_deposit' and 'high_cleaning_fee' have the stronger relationship compared to others. However, all variables have positive relationship together. Hence, the plot of two variables 'high_cleaning_fee' and 'high_security_deposit' is indicated, which represents that these variables don't have strong relationship.
+
+
+
+
+
+The second variable of awful Airbnb listing is inaccurate location. There is a variable in Airbnb database that indicates if the location of a particular Airbnb listing is exact or not. Therefore, if the results of 'is_location_exact' is equal to 0 or FALSE, the location of Airbnb place is not accurate. Additionally, the inaccurate location is aggregated at land parcel levels.
+
+
+```{r}
+## Latent variable (2): 'inaccurate_location'
+# Convert 'is_location_exact' to numeric variable
+awful_airbnb_var$is_location_exact <- ifelse(awful_airbnb_var$is_location_exact == "t", 1, 0)
+# Aggregate inaccurate location with land parcel
+inaccurate_location <- aggregate(is_location_exact == 0 ~ Land_Parcel_ID, awful_airbnb_var, sum)
+names(inaccurate_location)[2] <- 'Inaccurate Location'
+head(inaccurate_location, n = 3)
+```
+
+
+The third latent variable of awful Airbnb listing is 'bad_reviews', which contains all listings that the scores of all their reviews are below 9 out of 10. In the previous assignment I defined 'satisfaction' variable that includes listings that scores of all their reviews are greater than or equal to 9. Therefore, if I consider all listings that do not contain 'satisfaction' variable, the listings with negative reviews will be demonstrated. Moreover,'bad_reviews' variable is aggregated at land parcel level.
+
+```{r}
+## Latent variable (3): 'bad_reviews'
+# Convert 'satisfaction' to numeric variable
+awful_airbnb_var$satisfaction <- ifelse(awful_airbnb_var$satisfaction == "Satisfaction", 1, 0)
+# Aggregate not satisfaction with land parcel 
+bad_reviews <- aggregate(satisfaction == 0 ~ Land_Parcel_ID, awful_airbnb_var, sum)
+names(bad_reviews)[2] <- 'Bad Reviews'
+head(bad_reviews, n = 3)
+```
+
+These three latent variables are merged at parcel level to indicate Awful Airbnb Listing variable. 'Inaccurate Location' and 'Bad Reviews' have positive relationship together. It makes sense, because if the location of Airbnb listing is not accurate, customers will write negative reviews about the place. 
+
+```{r}
+# Creating Awful Airbnb Listing
+unfairPrice_Location <- merge(unreasonable_price, inaccurate_location, by = 'Land_Parcel_ID')
+Awful_Airbnb_Listing <- merge(unfairPrice_Location, bad_reviews, by = 'Land_Parcel_ID')
+tail(Awful_Airbnb_Listing, n = 3)
+
+# Correlation between bad_reviews and inaccurate_location
+cor(Awful_Airbnb_Listing$`Bad Reviews`, Awful_Airbnb_Listing$`Inaccurate Location`)
+# Maximum bad reviwes
+
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$Inaccurate.Location)]
+g <- awful_airbnb_var[awful_airbnb_var$Land_Parcel_ID == 502013000,]
+table(g$neighbourhood_cleansed)
+
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$`Bad Reviews`)]
+g <- awful_airbnb_var[awful_airbnb_var$Land_Parcel_ID == 400985000,]
+table(g$neighbourhood_cleansed)
+
+
+# Maximum unfair cleaning fee
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$high_extra_people_price)]
+h <- awful_airbnb_var[awful_airbnb_var$Land_Parcel_ID == 1703944000,]
+table(h$neighbourhood_cleansed)
+
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$high_security_deposit)]
+h <- awful_airbnb_var[awful_airbnb_var$Land_Parcel_ID == 501603000,]
+table(h$neighbourhood_cleansed)
+```
+
+
+Conclusion:
+
+In the previous assignment, two variables ‘Host’ and ‘Awful Airbnb Listing’ were defined. Each of them contains three latent variables and each construct variable includes some manifest variables. Host represents 'strict_host', 'flexible_host' and 'info_host', and Awful Airbnb Listing displays 'unreasonable_price', 'bad_reviews', and 'inaccurate_location' as latent variables. Host variables are defined at neighborhood levels and Awful Airbnb Listing are discussed at parcel levels. The result for Host variables indicates that some neighborhoods such as Beacon Hill and Fenway have statically significant effect on number of strict hosts for listings in those neighborhoods. Also, most Airbnb listings contain hosts who are flexible people, but if we consider the information provided by hosts, the number of strict hosts are greater than flexible host across neighborhoods. The results of Awful Airbnb Listings show that if location of a particular listing is not exact, it will receive more negative reviews. Also, high security deposit, cleaning fee, and high price for extra people have positive relationship together. It means if price of cleaning fee is increased, the price of extra people will be increased too. Furthermore, the maximum unfair cleaning fee is in 2201702000 parcel that is located in Allston neighborhood. Also, the greatest number of bad reviews is in 400985000 parcel that is located in Back Bay neighborhood.
+
+```{r}
+j$unreasonablePrice <- ifelse(j$extra_people > j$half_price | j$cleaning_fee >= j$price | j$security_deposit >= 1000, 1, 0)
+
+j <- merge(Awful_Airbnb_Listing, awful_airbnb_var, 'Land_Parcel_ID', all.x = TRUE)
+k <- j[j$neighbourhood_cleansed == 'Beacon Hill',]
+length(k$Land_Parcel_ID)
+table(k$unreasonablePrice)
+table(k)
+table(k$high_extra_people_price.x)
+table(k$high_cleaning_fee.x)
+
+```
+
+
+
+
+
+
+
+
+```{r}
+Host$Neighborhood[which.max(Host$acceptance_rate_flexible)]
+Host$Neighborhood[which.max(Host$security_deposit_0)]
+Host$Neighborhood[which.max(Host$no_profile_pic)]
+Host$Neighborhood[which.max(Host$cancellation_policy_flexible)]
+Host$Neighborhood[which.max(Host$info_flexible)]
+
+Host$Neighborhood[which.max(Host$acceptance_rate_strict)]
+Host$Neighborhood[which.max(Host$security_deposit_strict)]
+Host$Neighborhood[which.max(Host$have_profile_pic)]
+Host$Neighborhood[which.max(Host$cancellation_policy_strict)]
+Host$Neighborhood[which.max(Host$info_strict)]
+
+
+
+# Names of neighborhoods
+library(dplyr)
+awful_airbnb_var$BRA_PD <- factor(awful_airbnb_var$BRA_PD,
+levels = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16),
+labels = c("Allston/Brighton", "Back Bay/Beacon Hill", "Central", "Charlestown", "East Boston", "Fenway/Kenmore", "Hyde Park", "Jamaica Plain", "Mattapan", "North Dorchester", "Roslindale", "Roxbury", "South Boston", "South Dorchester", "South End", "West Roxbury"))
+
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$`Bad Reviews`)]
+g <- awful_airbnb_var[awful_airbnb_var$Land_Parcel_ID == 400985000,]
+table(g$BRA_PD)
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$high_cleaning_fee)]
+f <- awful_airbnb_var[awful_airbnb_var$Land_Parcel_ID == 2201702000,]
+table(f$BRA_PD)
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$high_security_deposit)]
+h <- awful_airbnb_var[awful_airbnb_var$Land_Parcel_ID == 501603000,]
+table(h$BRA_PD)
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$high_extra_people_price)]
+d <- awful_airbnb_var[awful_airbnb_var$Land_Parcel_ID == 1703944000,]
+table(d$BRA_PD)
+Awful_Airbnb_Listing$Land_Parcel_ID[which.max(Awful_Airbnb_Listing$`Inaccurate Location`)]
+k <- awful_airbnb_var[awful_airbnb_var$Land_Parcel_ID == 502013000,]
+table(k$BRA_PD)
+```
+
+```{r}
+Airbnb$host_acceptance_rate <- as.numeric(gsub('[%,]', '', Airbnb$host_acceptance_rate))
+# Convert 'security_deposit' to numeric variable
+Airbnb$security_deposit <- as.numeric(gsub('[$,]', '', Airbnb$security_deposit))
+# Convert 'require_guest_profile_picture' to numeric variable
+Airbnb$require_guest_profile_picture <- 
+  ifelse(Airbnb$require_guest_profile_picture == "t", 1, 0)
+
+Airbnb$strict_host <- ifelse(Airbnb$host_acceptance_rate < 85 | 
+                                  Airbnb$security_deposit >= 1000 | 
+                                  Airbnb$cancellation_policy == 1 | 
+                                  Airbnb$require_guest_profile_picture == 1, 1, 0)
+
+Airbnb$flexible_host <- ifelse(Airbnb$host_acceptance_rate > 85 | 
+                                  Airbnb$security_deposit == 0 | 
+                                  Airbnb$cancellation_policy == 0 | 
+                                  Airbnb$require_guest_profile_picture == 1, 1, 0)
+
+library(stringr)
+Airbnb$strict_info <- ifelse(as.numeric(str_detect(Airbnb$house_rules,"No shoes")) |
+                                       as.numeric(str_detect(Airbnb$house_rules,"no shoes")) | 
+                                       as.numeric(str_detect(Airbnb$house_rules,"No smoking")) | 
+                                       as.numeric(str_detect(Airbnb$house_rules,"no smoking")) | 
+                                       as.numeric(str_detect(Airbnb$house_rules, "no party")) | 
+                                       as.numeric(str_detect(Airbnb$house_rules,"no parties")), 1, 0)
+
+# Finding information that is provided by flexible hosts
+Airbnb$flex_info <- ifelse(as.numeric(str_detect(Airbnb$access, "full access")) | 
+                                     as.numeric(str_detect(Airbnb$access, "flexible")) | 
+                                     as.numeric(str_detect(Airbnb$access, "feel free")) | 
+                                     as.numeric(str_detect(Airbnb$access, "Everything"))| 
+                                     as.numeric(str_detect(Airbnb$access, "Entire")), 1, 0)
+
+write.csv(Airbnb,"~/Desktop/Airbnb_Host.csv", row.names = FALSE)
+```
+
+

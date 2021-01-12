@@ -1,0 +1,157 @@
+---
+title: "R Notebook"
+geometry: margin = 1cm
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_notebook: default
+---
+
+This dataset describes the structure of the Airbnb applications in Boston, which contains information about 9791 cases. The dataset includes 22 variables that can be divided into three categories:
+
+
+1) Application characteristics : It contains information about people who own an Airbnb place and it includes three variables.
+
+
+- "host_id" reflects the specific number that is assigned to each host.
+- "host_name" indicates the name of hosts.
+- "calculated_host_listings_count" means that the number of listings for a particular host.
+
+
+2) Geographic Information : 
+- "X" represents the x_coordinate or latitude location of the Airbnb place.
+- "Y" indicates the y_coordinate or longitude location of the Airbnb place.
+- "place_geog" reflects the respected value of Ln_P_ID) or (LOC_ID).
+- "place_geog_type" indicates which of (Ln_P_ID) or (LOC_ID) are used.
+- "Blk_ID_10" is the unique identifier for the 2010 U.S. Census Block in which the place of Airbnb is located.
+
+
+3) Specification of places that are used on Airbnb :
+- "id" indicates the specific number that is assigned to an Airbnb place.
+- "name" displays the name of the place that is used for Airbnb.
+- "room_type" shows the type of the Airbnb place.
+- "minimum_nights" represent the minimum stay for a visit, as posted by the host.
+- "price" reflects the price of renting an Airbnb place for a night based on Dollar.
+- "availability_365" indicates the number of days for that a particular host is available in a year.
+- "last_review" display the date of the last review for the place.
+- "number_of_reviews" shows the number of reviews for each Airbnb place.
+- "reviews_per_month" indicate the number of reviews in each month.
+- "Day" the date for renting each Airbnb place is split in day, month and year.
+- "Month" the date for renting each Airbnb place is split in day, month and year.
+- "Year" the date for renting each Airbnb place is split in day, month and year.
+- "neighborhood" indicates the location where Airbnb place is located.
+- "neighborhood_group" shows the group of neighborhoods that an Airbnb place is located.
+
+
+In order to analyze this dataset, we can consider a hypothesis then use regressions to reject or retain it. Also, using maps and plots will help us to represent the dataset and its results effectively.
+
+
+```{r}
+Airbnb <- read.csv("~/Desktop/air_bnb.csv", sep = ",", header = TRUE, stringsAsFactors=FALSE)
+head(Airbnb, n = 5)
+dim(Airbnb)
+```
+
+
+The above codes display importing dataset into the R and dimension of the dataset. The result indicates that the Airbnb dataset contains 9791 rows and 22 columns.
+
+
+```{r}
+# Checking for NA data and droping column which its data all are NA
+sum(is.na(Airbnb))
+colnames(Airbnb)[apply(is.na(Airbnb), 2, all)]
+# Displaying Missing data
+library(naniar)
+vis_miss(Airbnb, cluster = TRUE, show_perc_col = TRUE)
+# Drop neighbourhood_group because all its data are NA
+library(tidyverse)
+New_Airbnb <- select(Airbnb, -neighbourhood_group)
+```
+
+
+In this section the number of missing values (NA) are indicated. Because the problem of these values can have significant effect on the results. 
+
+
+-> The first script "sum(is.na(Airbnb))" represents the total number of NA in whole dataset and the result is equal to 12232 values.
+
+
+-> The second script "colnames(Airbnb)[apply(is.na(Airbnb), 2, all)]" illustrates the name of columns which all of their data are equal to NA. The conclusion indicates only one column has this condition which is "neighbourhood_group".
+
+
+-> Third code is used to show a visualization of missing data in the dataset. The results represent 94.3% of data don't have NA values. 5.7% of data have NA values, "neighbourhood_group" has most of them and "reviews_per_month" have the rest of them.
+
+
+-> In the last part, the new dataset is considered. Because "neighbourhood_group" is dropped since all of its data is equal to NA.
+
+```{r}
+head(New_Airbnb, n = 3)
+tail(New_Airbnb, n = 3)
+summary(New_Airbnb)
+str(New_Airbnb)
+
+# Number of columns
+ncol(New_Airbnb)
+colnames(New_Airbnb)
+```
+
+
+In this chunk the new dataset which doesn't have "neighbourhood_group" variable is introduced. Summary() function is used to indicate some information such as mean, median, minimum and maximum values for numeric variables and length and class for characters variables. str() function is used to display the structure of the dataset. Also, in the last part the number of columns which is now eqaul to 21 and the name of variables are indicated too.
+
+
+```{r}
+# Information about some selected Rows in the Dataset :
+# Number of rows
+nrow(New_Airbnb)
+nrow(New_Airbnb[New_Airbnb$room_type == 'Private room' & New_Airbnb$price <= "300",])
+head(New_Airbnb[New_Airbnb$minimum_nights > "3" & New_Airbnb$price < "200",], n = 3)
+nrow(New_Airbnb[New_Airbnb$neighbourhood == "Back Bay" & New_Airbnb$number_of_reviews >= "20",])
+head(New_Airbnb[New_Airbnb$availability_365 < "10"  | 
+                  New_Airbnb$calculated_host_listings_count > "70",], n = 3)
+
+# Number of availability of a particular host in a year
+sum(New_Airbnb$availability_365 == 0)
+nrow(New_Airbnb[New_Airbnb$availability_365 == 0 & New_Airbnb$number_of_reviews >= 1,])
+
+library(ggplot2)
+# Type of the Rooms
+table(New_Airbnb$room_type)
+ggplot(New_Airbnb, aes(New_Airbnb$room_type)) + geom_bar(fill = c("tan", "pink", "orange")) + xlab("Type of Room")
+
+# Plot of two variables
+ggplot(New_Airbnb, aes(x = New_Airbnb$number_of_reviews, 
+                       y = New_Airbnb$price))+ geom_point() + xlab("Number of Reviews") + ylab("Price")
+
+```
+
+
+-> This chunk reflects some information about different rows. First of all, the number of rows for new dataset is indicated which is 9791 cases and it equals to the preview dataset. The subsequent four scripts display some information about different rows. For example, the first one shows the number of cases which their type of rooms are private room and their price are less than or equal to $300. The result is equal to 1070 cases.
+
+
+-> The next code "sum(New_Airbnb$availability_365 == 0)" displays the availability of a particular host in 365 days in a year. The result is confusing since it equals to 1358 cases that their hosts are not available in a year. Thus, the number of cases which their availabilities of the host in a year is equal to 0 and they have reviews equal to or more than 1 is demonstrated. The result is equal to 948 cases which means that although the host is not available in a year, but people use the places.
+
+
+-> This part indicates two plots for some variables. First, function "table(New_Airbnb$room_type)" is used to represent the number of each category in "room_type". The result shows there are 5887 Entire home/apt, 3698 private room, and 206 shared room in the dataset. Then, in order to visualize the result of the table, the plot for type of the rooms is displayed. 
+
+
+-> The second plot reflects the relationship between two variables which are "price" and "number_of_reviews". The result indicates that, most number of reviews are for places that their price are less than 500 dollar. I think it makes sense since people prefer to stay in places that have reasonable prices. Also, it seems that price and number of reviews don't have strong relationships with together.
+
+
+```{r}
+# Correlation between some of the numeric variables
+library(stargazer)
+Airbnb_Mat <- cor(select(New_Airbnb, minimum_nights, price, availability_365, 
+                         number_of_reviews, calculated_host_listings_count))
+stargazer(Airbnb_Mat, header = FALSE, type = "text", font.size = "small", no.space = TRUE)
+
+# Visualization of the correlation matrix
+library(corrplot)
+corrplot(Airbnb_Mat, method = 'number',type = "full", tl.col = "Black", 
+         col = c("tan1", "gray", "skyblue", "navy"))
+```
+
+
+The last chunk represents the correlation between variables. First code demonstrates function cor() to indicate correlation and select() is used to select some of the numeric variables. Stargazer is used to represent the result clearly. The next code uses corrplot package and it used to visualize the results. 
+
+
+By way of conclusion based on all the results, I think choosing "price" as a dependent variable will be a good choice. Because price of the place always plays a significant role for choosing a place to stay. Moreover, from my point of view the type of the room can have important impact on people's decisions. Therefore, we can consider the hypothesis which is Does type of the room impact on price. In order to answer this question we can use multiple regression to display the effect of all variables on price.
+

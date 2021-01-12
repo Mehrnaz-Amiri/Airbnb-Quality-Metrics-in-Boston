@@ -1,0 +1,150 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+Airbnb <- read.csv("~/Desktop/air_bnb.csv", sep = ",", header = TRUE, stringsAsFactors=FALSE)
+```
+
+Boston is a large city that can attract a large number of visitors every year specially in summertime. Most of the visitors prefer to stay at Airbnb places, since Airbnb offers several benefits to customers. There are 25 neighbourhoods in Boston that have Airbnb places for renting. In the first part of this report, the bar graph of neighborhoods that are booked by customers is represented. Also, the number of these neighborhoods and their relative percentages are indicated in a separate table. 
+
+```{r}
+# Graph of Neighborhoods
+library(ggplot2)
+g1 <- ggplot(Airbnb) + geom_bar(aes(x = neighbourhood), fill = "navy", width = 0.5) +
+  theme(axis.text.x = element_text(angle=70, vjust=0.6)) + ggtitle("Number of Neighbourhoods")
+ggsave("g1.png", path = "~/Desktop")
+# Number and Percentage of Neighbourhoods
+Num_Neighbourhoods <- read.csv("~/Desktop/Book2.csv", sep = ",", header = TRUE, stringsAsFactors=FALSE)
+library("knitr")
+kable(Num_Neighbourhoods)
+
+?ggsave
+```
+
+
+
+In the first part, bar graph and table for "neighbourhood" are represented. Both of them indicate the number of Airbnb bookings in each neighborhood in Boston. Table is used to illustrate the exact number of bookings in each neighborhood. This graph is used in order to display, people prefer to book an Airbnb place in which neighbourhoods in Boston. In the following sections the reasons about why visitors prefer to stay in some neighborhoods more than other ones are discussed.
+
+
+Based on the graph and table, 8.11% of the Airbnb places (count = 795) that are booked by people are located in Back Bay. Therefore, among all neighborhoods, Back Bay has the most number of booking. Maybe, Back Bay contains more number of Airbnb places compared to other neighborhoods. From my point of view, Back Bay is the most-booked neighbourhood, because it has a lot of tourist attractions for visitors. For Example, Boston Public Library, Public Garden, Charles River, Trinity Church, and Copley square are located in Back Bay. Also, most of the restaurants and bars are located in Back Bay. After Back Bay, Dorchester (8.08%) and Fenway (7.95%) have the most number of booking. Dorchester is the largest neighborhood in Boston and Fenway has a famous park with a lot of sport bars, which can attract visitors. Among all neighborhoods, Leather District has the least number of bookings which is equal to 0.17%.
+
+
+
+```{r}
+# Scatter plot of Price, Neighbourhood, and Type of the room
+library(ggplot2)
+g2 <- ggplot(Airbnb, aes(x = price, y = neighbourhood, col = room_type)) + geom_point(size = 0.5) +
+  ggtitle("Scatter plot of Price, Neighborhood and type of the Room") + theme_bw()
+ggsave("g2.png", path = "~/Desktop")
+
+library(tidyverse)
+# Comparing price and Type of rooms in Back Bay and Leather District
+# Back Bay
+BackBay <- filter(Airbnb, Airbnb$neighbourhood == "Back Bay")
+table(BackBay$room_type)
+summary(BackBay$price)
+# Leather District
+Leather <- filter(Airbnb, Airbnb$neighbourhood == "Leather District")
+table(Leather$room_type)
+summary(Leather$price)
+```
+
+
+In this section, the scatter plot is selected to indicate the relationship between three variables which are "neighbourhood", "price", and "room_type". As mentioned in previews part, visitors prefer to book a listing in specific neighborhoods more than other ones. This graph is used to represent the effects of two variables on choosing some neighborhoods more than others.
+
+According to graph, the type of room in the most neighborhoods are Entire home or apartment which most prices for them are less than $500 for a night. As I mentioned in previous section, among 25 neighborhoods, Back Bay has the most Airbnb bookings. On the other hand, Leather District has the lowest number of booking. Thus, beside the attractions in Back Bay, I want to know the roles of "price" and "room_type" in choosing Airbnb listings in this neighborhood to stay. Additionally, the effect of "price" and "room_type" on choosing Leather District to stay.
+
+
+In the scripts, "price" and "neighbourhood" are selected as X, Y, and "room_type" is represented as color value. Back Bay and Leather District are filtered from Airbnb, then function table() is used to represent the number of "room_type" in each neighborhood. In the following, function summary() is used to display mean, min, and max values for price in each neighborhood.
+
+
+Referring to graph and tables, most of the rooms (673) in Back Bay are Entire homes or apartments, 113 rooms are private, and 9 rooms are shared. Mean of price in Back Bay is $238.9, minimum price for a night is 40 Dollar, and maximum price is 1500 Dollar. Therefore, because most of the Airbnb Listings are Entire home or apartment, people prefer to rent place in this neighbourhood. Additionally, the mean of price for a night to stay is about 239 Dollar.
+
+
+"room_type" in Leather District neighborhood contains 10 Entire home or apartment and 7 Private room. The mean value of price is equal to $512.6, minimum price for a night is 65 Dollar, and maximum price for one night is 3999 Dollar. I believe that, because of high price in this neighborhood, people prefer to don't book an Airbnb place there.
+
+
+```{r}
+# Scatter plot of Neighborhoods and Number of Reviews based on Year
+g3 <- ggplot(Airbnb, aes(x = neighbourhood, y = number_of_reviews)) + 
+  geom_bar(stat = "summary", fun.y = "mean", fill = "tan", color = "chocolate") + facet_grid(Year~.) +
+  theme(axis.text.x = element_text(angle = 65, vjust = 0.5)) +  ylab("Average of Reviews")
+  ggtitle("Relationship between Neighborhood and Number of Reviews in each year") 
+ggsave("g3.png", path = "~/Desktop") 
+# Summary of "minimum_nights"
+summary(Airbnb$number_of_reviews)
+```
+
+
+In this part, bar graph is used in order to indicate number of reviews for each neighborhood in different years. This graph is considered because we want to know which neighbourhood has the most number of reviews and in which year it has the highest average review. Airbnb data are collected during four years (2015, 2016, 2017, and 2018) and summary of "number_of_reviews" displays that minimum number of review is 1 and maximum number is 345. Mean of numbr of reviews is 11.62 and this graph is shaped based on the average. Results indicate that the average of reviews for all neighbourhood in 2015 are more than other years. Among all neighborhoods, East Boston hast the largest mean of reviews for all years and Longwood Medical Area has the least average of reviews specially in 2016. As we mentioned in previews sections, since Back Bay has the most number of bookings, we discusse it based on this graph. Back Bay has the highest average review in 2017 which is about 12 and it has the lowest average review in 2016 which is about 5 reviews. In addition, Leather District is considered too because it has the least number of bookings. Leather District has the highest average reviews in 2015 which is about 20 reviews and lowest average in 2018 which is about 3.
+
+
+
+```{r}
+# Pie chart for The number of listings for each host
+g4 <- ggplot(Airbnb, aes(x = "", fill = as.factor(calculated_host_listings_count))) + 
+  geom_bar(width = 1) + coord_polar(theta = "y") + xlab("Number of Listing for a host") 
+
+g7 <- ggplot(Airbnb, aes(x = neighbourhood, y= calculated_host_listings_count)) + geom_bar(stat = "summary", fun.y = "mean", fill = "skyblue") + theme(axis.text.x = element_text(angle = 65, vjust = 0.5)) +  ylab("Number of listings for the hosts")
+ggsave("g7.png", path = "~/Desktop") 
+nrow(Airbnb[Airbnb$calculated_host_listings_count == 1,])
+
+```
+
+
+The above graph indicates the number of listings for a particular host. The result shows that most of the hosts (4323) have only one listing. The minimum number that a particular host owns is one place and the maximum number is 326. There's a possibility that hosts change their names in their Airbnb accounts, thus maybe the number of listings that a particular host own is not correct.
+
+
+```{r}
+# On of the strange things in the data set:
+# Bar graph of Number of Reviews and Availability in a year
+Zero_Aval <- Airbnb[Airbnb$availability_365 == 0,]
+g5 <- ggplot(Zero_Aval, aes(x = availability_365 , y = number_of_reviews)) + geom_point(col = "brown") +
+  labs(x = "Availability of listings in a year", y = "Number of Reviews") + 
+  ggtitle("Number of Reviews when Availability of listings is 0") + theme_bw()
+ggsave("g6.png", path = "~/Desktop")
+# Number of cases with 0 availability in a year and number of reviews greater than 1
+nrow(Airbnb[Airbnb$availability_365 == 0 & Airbnb$number_of_reviews >= 1,])
+```
+
+
+
+
+In this section, one of the strange things in the data set is discussed. Variable "availability_365" means the availability of listings (place or property) in 365 days in a year. The above graph represents the number of reviews for places, whose availabilities in a year is equal to 0. It means that these places are not available in a year, but have reviews. 948 cases prove this condition. Based on the graph, when availability of a listing is equal to 0, it has approximately between 0 and 125 reviews.
+This script illustrates the bar graph of Number of Reviews and Availability of listings in a year. First, a dataset with places that have zero availability is derived. Then, a graph is captured to show that there are places with zero availability but have reviews. 
+
+
+Another strange thing in Airbnb Dataset is that all data for variable "neighbourhood_group" is missing data (NA). Other thing is through searching on Airbnb Website, I found that some information about listings are changed or they do not exist. For example, the below chunk indicates this case, whose reviews are 15, and its price for a night is $125. However, in data set its price is 150 Dollar and its number of reviews are 3.
+
+```{r}
+# Cheking for information
+Airbnb[2,]
+```
+
+```{r}
+# Considering "minimum_nigh" to stay as a strange thing in data set:
+Airbnb[Airbnb$minimum_nights > 365,]
+```
+
+There are two listings which their minimum nights for staying is equal to 400 and 600 nights. One of them that its minimum nights is 600, its availability in a year is 0, so maybe this listing is not exist any more. The other one with 400 minimum nights to stay is available 39 days in a year. However, considering these numbers for minimum nights to stay doesn't make sense.
+
+
+
+Other strange thing is that I tried to search a place with specific conditions on Airbnb Website, so this place is on Airbnb website but it is not in the data set. If this data set includes all information about Airbnb places in Boston, something doesn't make sense. The link of the place is attached. (https://www.airbnb.com/rooms/5976821?source_impression_id=p3_1569017487_s2garOpWlyr0ldjg)
+
+
+```{r}
+# Checking for existing
+Airbnb[Airbnb$room_type == "Shared room" & Airbnb$price == 75 & Airbnb$host_name == "Julie",]
+Airbnb[Airbnb$name == "Heart of the South End Near It All! Must <3 Cats!",]
+```
+
+
+
+
+
+

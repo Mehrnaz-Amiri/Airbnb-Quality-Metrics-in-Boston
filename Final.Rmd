@@ -1,0 +1,150 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+Airbnb <- read.csv("~/Desktop/air_bnb copy.csv", sep = ",", header = TRUE, stringsAsFactors=FALSE)
+names(Airbnb)
+names(Airbnb)
+table(Airbnb$point)
+table(Airbnb$experiences_offered)
+Airbnb$cancellation_policy
+colnames(Airbnb)[apply(is.na(Airbnb), 2, all)]
+```
+
+```{r}
+library(lubridate)
+Date <- paste(Airbnb$Month, Airbnb$Day, Airbnb$Year, sep = "-")
+Airbnb$Date <- as.Date(Date, format = "%d-%m-%Y")
+
+Airbnb$last_review <- as.Date(Airbnb$last_review, format = "%Y-%m-%d")
+library(ggplot2)
+Airbnb$year <- year(Airbnb$last_review)
+k <- as.data.frame(table(Airbnb$year))
+library(tidyverse) 
+l <- k %>%
+  ggplot(aes(x = k$Var1, y = k$Freq, group = 1)) + geom_line(color = "blue") +theme_bw()+xlab("Years") + ylab("Number of Airbnb Bookings") + ggtitle("Number of Airbnb booking during time in Boston") + 
+    theme(text = element_text(size=15))
+l
+ggsave("l.png", path = "~/Desktop")
+```
+```{r}
+summary(Airbnb$review_scores_rating)
+library(ggpubr)
+
+# Price 
+all_price <- ggplot(Airbnb, aes(price)) + geom_histogram(binwidth = 3) + theme_bw()
+
+# Select prices less or equal to $1000 to clearly show distribution
+price_select <- Airbnb[Airbnb$price <= 1000,]
+price_dist <- ggplot(price_select, aes(x = price)) + geom_histogram(binwidth = 5) + theme_bw()
+
+# Density of price
+price_den <- ggplot(Airbnb, aes(x = price))
+price_density <- price_den + geom_density() +
+  geom_vline(aes(xintercept = mean(price)), 
+             linetype = "dashed", color = "#FC4E07") +
+  scale_x_continuous("Price", limits = c(0,4000), breaks = c(0,200,1000, 2000,3000,4000)) + theme_bw() + 
+    theme(text = element_text(size=15)) + ggtitle("Price per night for all Airbnb listings")
+
+price_density
+ggsave("price_density.png", path = "~/Desktop")
+# All graphs in one plot
+figure <- ggarrange(all_price, price_dist, price_density, labels = c("1", "2", "3"),ncol = 3, nrow = 1)
+figure
+table(Airbnb_CRM$noise_types)
+```
+
+```{r}
+p <- as.data.frame(table(Airbnb$season))
+table(Airbnb$review_scores_rating)
+
+m<-Airbnb[Airbnb$review_scores_rating == 20,]
+table(m$neighbourhood_cleansed)
+k <- Airbnb[Airbnb$price <= 1000,]
+
+ggplot(Airbnb, aes(x = Airbnb$neighbourhood_cleansed, y =Airbnb$review_scores_rating)) + geom_bar(stat = "summary", fun.y='min')
+ggsave("j.png", path = "~/Desktop")
+```
+
+```{r}
+require(ggplot2)
+require(ggmap)
+Boston <- get_map(location=c(left = -71.193799, bottom = 42.15, right = -70.985746, top = 42.5))
+Bostonmap <- ggmap(Boston)
+# Location of each Boston Police Department District in Boston
+BPD_map <- Bostonmap +  geom_point(data=Airbnb, 
+                                   aes(x = longitude, y = latitude, color = room_type), size=0.5) 
+BPD_map
+
+
+
+library(leaflet)
+Airbnb_Boston <- leaflet(data = Airbnb) %>%
+  addTiles() %>%  
+  addCircleMarkers(~Airbnb$longitude,~Airbnb$latitude,radius = 0.5,weight = 0.5, color='blue') 
+Airbnb_Boston # Print the map
+
+j <- Airbnb[year(Airbnb$last_review)==2016,]
+k <- as.data.frame(table(j$neighbourhood_cleansed))
+sum(k$Freq)
+library(tidyverse)
+# Analysis data about IVS.SRT dates
+dt <- Airbnb %>% select(last_review, neighbourhood_cleansed)
+
+dt_open <- dt %>% mutate(years = as.factor(format(dt$last_review, format = "%Y")), months = as.factor(format(dt$last_review, format = "%m")))
+
+
+PPs_open <- dt_open %>% group_by(years, months)
+j <- as.data.frame(table(Airbnb$neighbourhood_cleansed))
+p <- merge(PPs_open, j, by.x='neighbourhood_cleansed', by.y='Var1')
+
+# Plot for opened investigation cases and number of problem properties in each month and year for those cases
+t2 <- ggplot(p[!is.na(p$last_review),] , aes(y = Freq/1000, x = years, alpha = Freq, fill = months, color = months)) + geom_bar(stat="identity") + ggtitle("Season of booked Airbnb listings during years") + xlab("Year") + ylab("Number of Airbnb listings were booked") + theme_bw()
+t2
+table(Airbnb$room_type)
+ggsave("t2.png", path = "~/Desktop")
+table(Airbnb$neighbourhood_cleansed)
+```
+
+
+```{r}
+Airbnb$satisfaction <- ifelse(Airbnb$satisfaction == "Satisfaction",1, 0)
+Airbnb$ideal <- ifelse(Airbnb$ideal == "Ideal", 1, 0)
+o <- sqldf("select neighbourhood_cleansed as Neighborhood,
+                      sum(unreasonable_price) as Unreasonable_Price,
+                      sum(satisfaction == 1) as Satisfaction
+                      from Airbnb
+                      group by neighbourhood_cleansed")
+count_nbhd <- as.data.frame(table(Airbnb$neighbourhood_cleansed))
+o[,-1] <- 100*o[,-1]/count_nbhd$Freq
+o
+write.csv(o,"~/Desktop/o.csv", row.names = FALSE)
+library(sf)
+# Shapefile of neighborhoods in Boston
+nbhd_geo <- st_read(dsn="~/Desktop/boston_neighborhood_shapefiles_iq5/boston_neighborhood_shapefiles_iq5.shp")
+# Convert coordinate system
+nbhd_geo <- st_transform(nbhd_geo, "+proj=longlat +datum=NAD83 +no_defs")
+# Importing latent variables's file
+o <- read.csv("~/Desktop/o.csv")
+# Merging shapefile and latent variable's file
+nbhd_geo <- merge(nbhd_geo, o, by.x='Name', by.y = 'Neighborhood',all.x=TRUE)
+
+library(tmap)
+tmap_mode('view')
+tm_shape(nbhd_geo) + tm_polygons(c('Unreasonable_Price', 'Satisfaction'), palette=list("seq", "Blues") , style = "jenks") + tm_view(alpha = 0.85,view.legend.position = c("right", "bottom")) + tm_facets(nrow=1,ncol=2)
+
+Airbnb$satisfaction <- ifelse(Airbnb$satisfaction == "Satisfaction", 1,0)
+table(Airbnb$season)
+table(Airbnb$satisfaction)
+
+mv7 <- glm(satisfaction ~ point + unreasonable_price + ideal + number_of_reviews + price, data = Airbnb, family = "binomial")
+suppressMessages(library(stargazer)) 
+stargazer(mv7, type = "text", header = FALSE, single.row = TRUE,
+          dep.var.labels = c("Rating"),
+covariate.labels = c("Hosts' Policies"), 
+omit.stat=c("LL","ser","f","adj.rsq"),
+title = "Regression of hosts' policies on Rating")
+```
+

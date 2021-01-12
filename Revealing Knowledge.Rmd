@@ -1,0 +1,248 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+
+Airbnb <- read.csv("~/Desktop/air_bnb copy.csv", sep = ",", header = TRUE, stringsAsFactors=FALSE)
+names(Airbnb)
+table(Airbnb$price)
+table(Airbnb$cancellation_policy)
+Airbnb$security_deposit <- as.numeric(gsub('[$,]', '', Airbnb$security_deposit))
+summary(Airbnb$security_deposit)
+?order
+Airbnb[order(Airbnb[,Airbnb$security_deposit] ),]
+```
+
+Introduction:
+
+Previous results showed that Back Bay is the neighbourhood with the most number of bookings and Leather District has the least bookings. Also, effect of variables 'price', 'room_type', 'number_of_reviews', and 'calculated_host_listings_count' on number of bookings in each neighbourhood were discussed. I concluded that people prefer to book an Airbnb place in Back Bay or Fenway, because the average price-per-night to stay is fair in these neighborhoods, beside their tourism attractions. Also, most of the listings are 'entire homes' or 'apt' in Back Bay and Fenway. In this assingment, I want to discuss new variables about the seasons or days that visitors might prefer to stay in Boston and book an Airbnb listing. In addition, I would like to create some variables, which can improve the data set and solve some problems in data. One problem in the data set is that the variable 'neighbourhood_group' contains only NA value, and I have decided to drop it from the data set. Another problem which I discussed in the previews assignment is about cases that their availabilities in a year are 0 but they have reviews. In the following, by creating new variables I try to solve them.
+
+
+```{r}
+# removing columns which all of their values are NA
+Airbnb <- Airbnb[,colSums(is.na(Airbnb)) < nrow(Airbnb)]
+
+# Date
+library(lubridate)
+Date <- paste(Airbnb$Month, Airbnb$Day, Airbnb$Year, sep = "-")
+Airbnb$Date <- as.Date(Date, format = "%d-%m-%Y")
+table(Airbnb$Date)
+
+# Last Scraped
+Airbnb$calendar_last_scraped <- as.Date(Airbnb$calendar_last_scraped, format = "%Y-%m-%d")
+table(Airbnb$calendar_last_scraped)
+```
+
+
+Analysis:
+
+
+In the data set, three variables 'Year', 'Month', and 'Day' exist, which definitely can form a date together. In this part, these three variables are converted to Date variable, so that I can use them to realize in what dates Airbnb data is released. Results show that there are only four dates, which are 2015-03-10, 2016-07-09, 2017-06-10, and 2018-11-10. The table represents that year 2018 has the most number of data that is released than other years. Clearly, year 2018 has more number of data release than 2017 and I wonder if this shows that more people are encouraged to let their place for booking on Aribnb. But, we are not sure, and we would need more data to conclude such statement. Also, these four dates cannot help me to figure out the dates that the listings are used so I will use the dates of 'last_review'. Because, I think most of the people write a review after or during the time that they stay in an Airbnb listing. Therefore, by using last reviews dates, I can approximately have access to the dates that a particular listing is used.
+
+
+
+```{r}
+# Convert 'last_review' to Date variable
+Airbnb$last_review <- as.Date(Airbnb$last_review, format = "%Y-%m-%d")
+
+# Converting 'first_review to Date variable
+Airbnb$first_review <- as.Date(Airbnb$first_review, format = "%Y-%m-%d")
+
+# Fisrt Date of last reviews
+min(Airbnb$last_review, na.rm = TRUE)
+# The cases with no reviews in the past five years
+nrow((Airbnb[Airbnb$last_review == "2010-08-30",]))
+
+
+```
+
+I would like to see if there is any listings in the data set that has not had review for a long time (maybe for more than 2 years). First, I convert 'last_review', which is a character type, to date type. I obtained the minimum value for the last review variable, which is "2010-08-30", and because the minimum (first) date that data are released (collected) is "2015-03-10", it means that thess\e particular listings have not had any reviews for five years. There are 3207 listings whose last reviews were on "2010-08-30". So, it is possible that host has dropped his/her listing from Airbnb, and this might be why it has not had reviews for a long time.
+
+
+
+```{r}
+table(Airbnb$calendar_last_scraped)
+my_scraped <- Airbnb[Airbnb$calendar_last_scraped == "2018-10-11",]
+table(my_scraped$neighbourhood_cleansed)
+
+
+ggplot(my_scraped, aes(my_scraped$neighbourhood_cleansed, my_scraped$price)) + geom_bar(stat = "summary", fun.y = "mean") + theme(axis.text.x = element_text(angle = 65, vjust = 0.5, size = 7))
+my_scraped[my_scraped$availability_365 ==0,]
+# Solving the problem about variable 'availability_365'
+nrow(Airbnb[Airbnb$availability_365 == 0 & Airbnb$has_availability == "t" & year(ymd(Airbnb$last_review)) == year(ymd(Airbnb$Date)) & year(ymd(Airbnb$last_review)) == year(ymd(Airbnb$calendar_last_scraped)),])
+
+no_avl <- Airbnb[Airbnb$availability_365 == 0 & Airbnb$availability_30 == 0 & Airbnb$availability_60 == 0 & Airbnb$availability_90 == 0 & Airbnb$has_availability != "t",]
+
+
+no_avl <- na.omit(no_avl)
+no_avl
+sum(is.na(no_avl))
+h <- no_avl[year(ymd(no_avl$last_review)) == year(ymd(no_avl$Date)) & year(ymd(no_avl$last_review)) == year(ymd(no_avl$calendar_last_scraped)),]
+h
+ sum(is.na(h))
+
+```
+
+
+I am not completely sure what the variable 'availability_365' means and I want to raise a concern about it. There are 5 variables about availability which are 'availability_30', 'availability_60', 'availability_90', 'availability_365', and 'has_availability'. As mentioned previosuly, in the data set, there are some listings for which the variable 'availability_360' is equal to zero, which seems strange. These variables are not available in 30, 60, 90, and 365 days. I have two guesses for this issue: 1. It means that the host has not made the specific listing available during the past 365 days from the day that the data is released; 2. It means that the place has been fully booked during the past 365 days so that the availability is zero. My previous analysis showed that there are some places with zero availability but more than 0 review, which means that the place has been booked by someone, who has added the review. So, this might imply the second guess, but I am not sure and in this assignment, I would like to dig into this. I have defined a new variable, which indicates the places that have zero availability, but their last review date is in the same year as the data is released. Also, these variables 'has_availability' equal to 't' which means TRUE. You might ask how this can help? Obviously, 365 days form a year. Hence, if the data for a particular place is released on year 2016 and this place has a last review in the same year and it has availability equals to true, it means that the place has been booked at least once during the past 365 days. Now that we concluded that the place has been available at least once for booking during the past 365 days, we can say that the variable 'availability_360' means the second guess (It means that the place has been fully booked during the past 365 days so that the availability is zero). The results represent that 1504 listings are not available in whole year, but since they have availibity in a year, the second guess can work for it. There are 723 cases which 
+
+
+
+According to last review dates, I create the variables 'weekend', 'spring', 'summer', 'fall', and 'winter'. I would like to know if visitors prefer to visit Boston on weekends or weekdays. Also, I want to know which season has the most number of visitors.
+
+```{r}
+Airbnb$weekend <-ifelse(wday(ymd(Airbnb$last_review))==1 & Airbnb$calendar_updated == "today" | wday(ymd(Airbnb$last_review))==7 & Airbnb$calendar_updated == "today", 'Weekend', 'Weekday')
+table(Airbnb$weekend)
+
+```
+
+
+
+In the above script, variable 'weekend' is created. According to table and graph, most of the reviews (or probably stay) have been on weekdays so we can conclude that visitors prefer to use an Airbnb listing on weekdays. This can imply that business or work might be a more important reason for people to visit Boston, since weekdays are actually the workdays. Ass I mentioned earlier, these dates are the dates of last reviews, so maybe people book an Airbnb on weekend but write their reviews on weekdays. Although in my opinion this is less likely, but we can still consider this.
+
+
+```{r}
+library(lubridate)
+library(ggplot2)
+# Create new variables about Seasons 
+names(Airbnb)
+Airbnb$season <- rep(NA , nrow(Airbnb))
+
+Airbnb[!is.na(Airbnb$last_review) &   ((month(ymd(Airbnb$last_review)) == 03 & day(ymd(Airbnb$last_review)) >= 21) |
+                                       month(ymd(Airbnb$last_review)) == 04 |
+                                       month(ymd(Airbnb$last_review)) == 05 |
+                                       (month(ymd(Airbnb$last_review)) == 06 & day(ymd(Airbnb$last_review)) < 21)), 102] <- 'Spring'
+
+
+Airbnb[!is.na(Airbnb$last_review) & ((month(ymd(Airbnb$last_review)) == 06 & day(ymd(Airbnb$last_review)) >= 21) |
+                                       month(ymd(Airbnb$last_review)) == 07 |
+                                       month(ymd(Airbnb$last_review)) == 08 |
+                                       (month(ymd(Airbnb$last_review)) == 09 & day(ymd(Airbnb$last_review)) < 21)), 102] <- 'Summer'
+
+Airbnb[!is.na(Airbnb$last_review) & ((month(ymd(Airbnb$last_review)) == 09 & day(ymd(Airbnb$last_review)) >= 21) |
+                                       month(ymd(Airbnb$last_review)) == 10 |
+                                       month(ymd(Airbnb$last_review)) == 11 |
+                                       (month(ymd(Airbnb$last_review)) == 12 & day(ymd(Airbnb$last_review)) < 21)), 102] <- 'Fall'
+
+Airbnb[!is.na(Airbnb$last_review) & ((month(ymd(Airbnb$last_review)) == 12 & day(ymd(Airbnb$last_review)) >= 21) |
+                                       month(ymd(Airbnb$last_review)) == 01 |
+                                       month(ymd(Airbnb$last_review)) == 02 |
+                                       (month(ymd(Airbnb$last_review)) == 03 & day(ymd(Airbnb$last_review)) < 21)), 102] <- 'Winter'
+table(Airbnb$season)
+Seasons_plot <- ggplot(Airbnb, aes(neighbourhood)) + geom_bar(aes(fill = as.factor(season))) + 
+  theme(axis.text.x = element_text(angle = 65, vjust = 0.5, size = 5)) + labs(fill = "Seasons")
+Seasons_plot
+
+write.csv(Airbnb,"~/Desktop/Airbnb.csv", row.names = FALSE)
+
+```
+
+
+Winters are extremely cold in Boston! Isn't it? When we say Boston, the freezing winter might be among the first things that come to mind. Hence, I would like to check what season is most popular for vistors to come to Boston. In this part, the date of last reviews is used to represent which season has the most visitors in Boston. Referring to table and graph, 660 of last reviews are written in Spring, 3820 of the last reviews are written in Summer, 2714 reviews in Fall, and 156 ones in Winter. You can now refer to the beginning of the paragraph and see why winter has the least bookings (reviews). Most of the last reviews are written on Summer and if we consider these dates as the date visitors book the listings, Boston has the most visitors in Summer and Fall. I could name Fall Foliage an important reason for Boston visitors; also, since Fall is almost the start date of schools (especially universities), more people stay at Aribnb places during Fall. Having information about which season is the most popular in Boston will be useful for the hosts. Because, based on the information they can improve their facilities for a specific season. For example, since Boston has 3820 visitors in Summers, hosts can provide pool or outdoor furnitures for visitors. Additionally, Airbnb Website can offer discount or other options to visitors for attracting more customers. Let us now look from the customers' points of view when booking an Aribnb place. I decided to create a new variable which is ideal. 
+
+
+
+
+```{r}
+summary(Airbnb$price)
+library(ggpubr)
+# Price to numeric
+Airbnb$price <- as.numeric(gsub('[$,]', '', Airbnb$price))
+Airbnb$extra_people <- as.numeric(gsub('[$,]', '', Airbnb$extra_people))
+Airbnb$cleaning_fee <- as.numeric(gsub('[$,]', '', Airbnb$cleaning_fee))
+# Price 
+all_price <- ggplot(Airbnb, aes(price)) + geom_histogram(binwidth = 3) + theme_bw()
+
+# Select prices less or equal to $1000 to clearly show distribution
+price_select <- Airbnb[Airbnb$price <= 1000,]
+price_dist <- ggplot(price_select, aes(x = price)) + geom_histogram(binwidth = 5) + theme_bw()
+
+# Density of price
+price_den <- ggplot(Airbnb, aes(x = price))
+price_density <- price_den + geom_density() +
+  geom_vline(aes(xintercept = mean(price)), 
+             linetype = "dashed", size = 0.6, color = "#FC4E07") +  
+  scale_x_continuous("Price", limits = c(0,1000), breaks = c(0,200,400,600,800,1000))
+
+# All graphs in one plot
+figure <- ggarrange(all_price, price_dist, price_density, labels = c("1", "2", "3"),ncol = 3, nrow = 1)
+figure
+table(Airbnb$room_type)
+summary(Airbnb$number_of_reviews)
+ggsave("figure.png", path = "~/Desktop")
+library(stringr)
+# Considering average of price for cases with ideal conditions
+Ideal_conditions <- Airbnb[Airbnb$room_type == "Entire home/apt" & Airbnb$number_of_reviews >= 25 & Airbnb$bed_type == "Real Bed"& Airbnb$has_availability == "t"  & Airbnb$cleaning_fee <= 70 & Airbnb$is_location_exact == "t" & str_detect(Airbnb$amenities, "TV"),]
+mean(Ideal_conditions$price, na.rm = TRUE)
+
+# Create new Variable 'ideal'
+Airbnb$ideal <- ifelse(Airbnb$price <= 200 &  Airbnb$room_type == "Entire home/apt"& Airbnb$number_of_reviews >= 25 & Airbnb$bed_type == "Real Bed"  & str_detect(Airbnb$amenities, "TV"), "Ideal", "Not Ideal")
+table(Airbnb$ideal)
+dim(Airbnb)
+summary(Airbnb$price, na.rm = TRUE)
+
+# Neighborhoods and Ideal 
+Nbhd_ideal <- ggplot(Airbnb, aes(Airbnb$neighbourhood_cleansed)) + geom_bar(aes(fill = as.factor(ideal))) + 
+  theme(axis.text.x = element_text(angle = 65, vjust = 0.5, size = 7)) + labs(fill = "Ideal vs Not Ideal") +
+Nbhd_ideal
+ggsave("Nbhd_ideal.png", path = "~/Desktop")
+
+```
+
+
+Boston is an expensive city but because it has a lot of tourism attractions, a huge amount of visitors visit Boston every year. Hence, I wanted to create a new variable which can provide ideal conditions for visitors to book an Airbnb listing. When people want to book a listing on Airbnb Website, they filter conditions that look more importatn to them so that makes the decision easier for them. This variable is created to indicate which neighborhood contains more ideal options. 'price' is considered since it is probablythe most important factor to book a place (at least for me). I consider it equal or less than $180, beacause the average price in all neighborhoods is 180 Dollar. Addtionally, the type of room is considered as entire home or apartment, since it has significant effect on choosing a place to stay. The next variable is 'number_of_reviews', which is mentioned as greater o equal to 12, since the average number of reviews for all data set is 11.62. 
+
+
+According to graph and table, 796 cases have ideal conditions among all cases. Thus, these cases which have ideal options are represented based on each neighborhood. The plot indicates that, Beacon Hill, East Boston, Jamaica Plain, North End, and South End have highest range of ideal options among all neighborhoods. Among all of these neighborhoods, Jamaica Plain and South End have the highest number of bookings.
+
+
+Conclusion:
+
+In this assignment, I converted three variables 'Day', 'Year', and 'Month' to one 'Date' variable and the results indicated that all Airbnb data set are posted on four unique dates between 2015 and 2018. Therefore, these dates might not be informative, so variable 'last_review' is considered in order to represent the dates that listings are used. Based on these dates, variable 'season' which contains four values, spring, summer, fall, and winter are created and results display Boston has the most visitors on summer and Fall. Moreover, I tried to solve a problem about cases whose availabilities are 0 but have reviews, so I defined new variable which indicates what 'availability_365' actually means. Finally, two variables 'ideal' and 'satisfaction' are identified to indicate which neighborhoods have the highest number of Airbnb Listings that offer better options to customers and which ones have the maximum rate of reviews by customers among all neighborhoods.    
+
+
+```{r}
+Airbnb$satisfaction <- ifelse(Airbnb$review_scores_rating >= 90 & Airbnb$review_scores_cleanliness >= 9 & Airbnb$review_scores_accuracy >= 9 & Airbnb$review_scores_location >= 9  & Airbnb$review_scores_checkin >= 9 & Airbnb$review_scores_communication >= 9 & Airbnb$review_scores_value >= 9 , "Satisfaction", "Not Satisfaction")
+table(Airbnb$satisfaction)
+
+
+library(ggplot2)
+Nbhd_satis <- ggplot(Airbnb, aes(neighbourhood_cleansed)) + geom_bar(aes(fill = as.factor(satisfaction))) + theme(axis.text.x = element_text(angle = 65, vjust = 0.5, size = 7)) + labs(fill = "Satisfaction vs Not satisfaction")
+Nbhd_satis
+
+table(Airbnb$neighbourhood_cleansed)
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Back Bay" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Allston" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Bay Village" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Beacon Hill" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Brighton" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Charlestown" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Chinatown" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Dorchester" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Downtown" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "East Boston" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Fenway" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Hyde Park" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Jamaica Plain" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Leather District" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Longwood Medical Area" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Mattapan" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Roxbury" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "West End" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "South End" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Roslindale" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "South Boston Waterfront" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "North End" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "West Roxbury" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "South Boston" & Airbnb$satisfaction == "Satisfaction",])
+nrow(Airbnb[Airbnb$neighbourhood_cleansed == "Mission Hill" & Airbnb$satisfaction == "Satisfaction",])
+
+```
+
+Another variable that is created is 'satisfaction' which indicates the rate of customer's reviews. I consider rate for each review equal or greater than 9 and results represent that 9149 listings have reviews equal or greater than 9 out of 10 in cleaning, location, checking, accuracy, communication with host, and value. The graph displays that Jamaica Plain and South End have the maximum rate of satisfaction. In the other hand, Dorchester and Roxbury have the minimum rate of satisfaction among all neighborhoods.
+
+

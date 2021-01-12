@@ -1,0 +1,106 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+Airbnb <- read.csv("~/Desktop/Airbnb.csv", sep = ",", header = TRUE, stringsAsFactors=FALSE)
+names(Airbnb)
+
+# Selecting variables I need to create latent and manifest variables
+library(tidyverse)
+host_variables <- select(Airbnb, host_acceptance_rate, security_deposit, require_guest_profile_picture, 
+                         cancellation_policy, notes, host_about, house_rules, access, neighbourhood_cleansed)
+
+# Convert 'host_acceptance_rate' to numeric variable
+host_variables$host_acceptance_rate <- as.numeric(gsub('[%,]', '', host_variables$host_acceptance_rate))
+
+
+host_variables$require_guest_profile_picture <- 
+  ifelse(host_variables$require_guest_profile_picture == "t", 1, 0)
+
+host_variables$cancellation_policy <- ifelse(host_variables$cancellation_policy == "super_strict_60" 
+                                             | host_variables$cancellation_policy == "super_strict_30", 1, 0)
+
+
+host_variables$host_acceptance_rate <-  ifelse(host_variables$host_acceptance_rate >= 85, 0, 1)
+
+host_variables$security_deposit <- ifelse(host_variables$security_deposit >= 1000, 1, 0)
+
+host_variables[,1:4]
+# Identifying points for each host in Airbnb dataset
+Airbnb$point <- apply(host_variables[,1:4], 1, sum, na.rm = TRUE)
+table(Airbnb$point)
+
+
+
+library(sqldf)
+# Aggregate type of hosts at neighborhood level
+host_points <- sqldf("select neighbourhood_cleansed as Neighborhood,
+                      sum(point == 0) as PercentProportion_FlexiblePolicies,
+                      sum(point == 1) as PercentProportion_ModeratePolicies,
+                      sum(point == 2) as PercentProportion_StrictPolicies
+                      from Airbnb
+                      group by neighbourhood_cleansed")
+
+host_points
+# Percentage of each point across neighborhoods
+count_nbhd <- as.data.frame(table(Airbnb$neighbourhood_cleansed))
+host_points[,-1] <- 100*host_points[,-1]/count_nbhd$Freq
+host_points
+write.csv(Airbnb,"~/Desktop/Airbnb-new.csv", row.names = FALSE)
+```
+
+```{r}
+library(sf)
+# Shapefile of neighborhoods in Boston
+nbhd_geo <- st_read(dsn="~/Desktop/boston_neighborhood_shapefiles_iq5/boston_neighborhood_shapefiles_iq5.shp")
+# Convert coordinate system
+nbhd_geo <- st_transform(nbhd_geo, "+proj=longlat +datum=NAD83 +no_defs")
+# Importing latent variables's file
+host_point <- read.csv("~/Desktop/Host.csv")
+# Merging shapefile and latent variable's file
+nbhd_geo <- merge(nbhd_geo, host_point, by.x='Name', by.y = 'Neighborhood',all.x=TRUE)
+
+library(tmap)
+tmap_mode('view')
+tm_shape(nbhd_geo) + tm_polygons(c('PercentProportion_FlexiblePolicies', 'PercentProportion_ModeratePolicies', 'PercentProportion_StrictPolicies') , palette=list("seq", "Reds", "Purples"), style = "jenks") +  tm_facets(nrow=1,ncol=2)  + tm_view(alpha = 0.85,view.legend.position = c("right", "bottom")) + tm_layout(title = c("Flexible Host", "Moderate Host", "Strict Host"))
+```
+
+```{r}
+Airbnb <- within(Airbnb, 
+                   neighbourhood_cleansed <- factor(neighbourhood_cleansed, 
+                                    levels=names(sort(table(neighbourhood_cleansed)))))
+#  Plot for each kind of hosts
+p <- ggplot(Airbnb, aes(neighbourhood_cleansed)) + geom_bar(aes(fill = as.factor(point))) + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10))  + scale_fill_discrete(name = "Host's Policies", labels = c("Flexible", "Moderate", "Strict")) + xlab('Neighborhoods') + ggtitle("Host's Policies")
+p 
+ggsave("p.png", path = "~/Desktop")
+```
+
+```{r}
+dim(Airbnb)
+table(Airbnb$neighbourhood_cleansed)
+bv1 <- lm(point ~ neighbourhood_cleansed, data = Airbnb)
+suppressMessages(library(stargazer)) 
+stargazer(bv1, type = "text", header = FALSE, single.row = TRUE, covariate.labels = c("Back Bay", "Bay Village",  "Beacon Hill" , "Brighton", "Charlestown", "Chinatown", "Dorchester", "Downtown", "East Boston", "Fenway",  "Hyde Park", "Jamaica Plain", "Leather District", "Longwood Medical Area",  "Mattapan", "Mission Hill","North End", "Roslindale", "Roxbury", "South Boston", "South Boston  Waterfront", "South End", "West End", "West Roxbury"),
+omit.stat=c("LL","ser","f","adj.rsq"))
+
+
+```
+
+```{r}
+Airbnb <- transform(Airbnb, half_price = price/2)
+
+Airbnb$unreasonable_price <- ifelse(Airbnb$security_deposit >= 1000 | Airbnb$cleaning_fee >= Airbnb$price | Airbnb$extra_people >= Airbnb$half_price, 1, 0)
+table(Airbnb$unreasonable_price)
+
+
+
+
+```
+
